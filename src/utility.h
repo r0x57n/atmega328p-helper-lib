@@ -14,4 +14,4 @@ void make_inputs(port p, int from, int to);
 void make_pullup(port p, int pin);
 
 int read(port p, int pin);
-void wait_for(port p, int pin);
+void wait_btn(port p, int pin);

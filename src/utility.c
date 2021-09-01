@@ -8,20 +8,26 @@
 static void do_port(port p, action a, int pin) {
     switch (p) {
     case portb:
-	if (a != p_toggle)
-	    PORTB = a << pin;
+	if (a == p_set)
+	    PORTB |= (1 << pin);
+	else if (a == p_unset)
+	    PORTB &= (0 << pin);
 	else
 	    PORTB ^= (1 << pin);
 	break;
     case portd:
-	if (a != p_toggle)
-	    PORTD = a << pin;
+	if (a == p_set)
+	    PORTD |= (1 << pin);
+	else if (a == p_unset)
+	    PORTD &= (0 << pin);
 	else
 	    PORTD ^= (1 << pin);
 	break;
     case portc:
-	if (a != p_toggle)
-	    PORTC = a << pin;
+	if (a == p_set)
+	    PORTC |= (1 << pin);
+	else if (a == p_unset)
+	    PORTC &= (0 << pin);
 	else
 	    PORTC ^= (1 << pin);
 	break;
@@ -31,13 +37,22 @@ static void do_port(port p, action a, int pin) {
 static void do_ddr(port p, type t, int pin) {
     switch (p) {
     case portb:
-	PORTB = t << pin;
+	if (t == output)
+	    DDRB |= (1 << pin);
+	else if (t == input)
+	    DDRB &= (0 << pin);
 	break;
     case portd:
-	PORTD = t << pin;
+	if (t == output)
+	    DDRD |= (1 << pin);
+	else if (t == input)
+	    DDRD &= (0 << pin);
 	break;
     case portc:
-	PORTC = t << pin;
+	if (t == output)
+	    DDRC |= (1 << pin);
+	else if (t == input)
+	    DDRC &= (0 << pin);
 	break;
     }
 }
@@ -81,22 +96,39 @@ void make_pullup(port p, int pin) {
 int read(port p, int pin) {
     switch(p) {
     case portb:
-	return PORTB & (1 << pin);
+	return PINB & (1 << pin);
     case portd:
-	return PORTD & (1 << pin);
+	return PIND & (1 << pin);
     case portc:
-	return PORTC & (1 << pin);
+	return PINC & (1 << pin);
     }
 
-    return 0;
+    return 1;
 }
 
+
 /* Waits for PINx to change value */
-void wait_for(port p, int pin) {
-    int old_val = read(p, pin);
+
+void wait_btn(port p, int pin) {
 
     while (1) {
-	if (old_val != read(p, pin)) {
+	if (read(p, pin) == 0) {
+	    int counter = 0;
+
+	    // debounce
+	    while (1) {
+		int val = read(p, pin);
+
+		if (val > 0) {
+		    counter++;
+		}
+
+		_delay_ms(1);
+
+		if (counter > 25)
+		    break;
+	    }
+
 	    break;
 	}
     }
