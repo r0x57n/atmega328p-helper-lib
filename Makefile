@@ -7,8 +7,6 @@ AR=avr-ar
 AFLAGS=-rc
 LIB_OUTPUT=./output/libutility.a
 
-all: build lib
-
 build:
 	$(CC) $(INPUT) $(CFLAGS) -o $(OUTPUT)
 
