@@ -1,24 +1,29 @@
 #ifndef UTILITYHEADER_INCLUDED
 #define UTILITYHEADER_INCLUDED
 
-typedef enum { portb, portd, portc } port;
-typedef enum { p_set = 1, p_unset = 2, p_toggle = 3 } action;
-typedef enum { output = 1, input = 0 } type;
+#include <stdint.h>
 
-void set(port p, int pin);
-void unset(port p, int pin);
-void toggle(port p, int pin);
+typedef enum { portb, portd, portc } Port;
+typedef enum { p_set = 1, p_unset = 2, p_toggle = 3 } Action;
+typedef enum { output = 1, input = 0 } Type;
 
-void make_output(port p, int pin);
-void make_input(port p, int pin);
-void make_outputs(port p, int from, int to);
-void make_inputs(port p, int from, int to);
-void make_pullup(port p, int pin);
+void set(Port p, int pin);
+void unset(Port p, int pin);
+void toggle(Port p, int pin);
 
-int read(port p, int pin);
-void wait_btn(port p, int pin);
+void make_output(Port p, int pin);
+void make_input(Port p, int pin);
+void make_outputs(Port p, int from, int to);
+void make_inputs(Port p, int from, int to);
+void make_pullup(Port p, int pin);
 
-/* Shift register  */
+int read(Port p, int pin);
+void wait_btn(Port p, int pin);
+
+
+/*
+ * Shift register (SN74HC595N).
+ */
 
 typedef struct {
   int MR;
@@ -26,12 +31,28 @@ typedef struct {
   int ST_CP;
   int OE;
   int DS;
-  int port;
+  Port port;
 } ShiftRegister;
 
+void sr_init(ShiftRegister *sr);
 void sr_step(ShiftRegister *sr);
 void sr_step_times(ShiftRegister *sr, int times);
-void sr_toggle_output(ShiftRegister *sr);
+void sr_toggle(ShiftRegister *sr);
 void sr_reset(ShiftRegister *sr);
+void sr_push_val(ShiftRegister *sr, uint8_t value);
+
+
+/*
+ * Distance sensor (HY-SRF05).
+ */
+
+typedef struct {
+  int TRIG;
+  int ECHO;
+  Port port;
+} DistanceSensor;
+
+void ds_init(DistanceSensor *ds);
+float ds_measure(DistanceSensor *ds);
 
 #endif

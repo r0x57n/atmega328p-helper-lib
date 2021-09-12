@@ -5,9 +5,14 @@
 
 #include "utility.h"
 
-/* Helper */
+/*
+ * Library helper functions, statics.
+ *
+ * Used inside of the library only, not exposed to end user.
+ */
 
-static void do_port(port p, action a, int pin) {
+static void do_port(Port p, Action a, int pin)
+{
   switch (p) {
     case portb:
       switch (a) {
@@ -51,7 +56,7 @@ static void do_port(port p, action a, int pin) {
   }
 }
 
-static void do_ddr(port p, type t, int pin) {
+static void do_ddr(Port p, Type t, int pin) {
   switch (p) {
     case portb:
       switch (t) {
@@ -86,39 +91,54 @@ static void do_ddr(port p, type t, int pin) {
   }
 }
 
-/* PORTx */
 
-void set(port p, int pin) { do_port(p, p_set, pin); }
-void unset(port p, int pin) { do_port(p, p_unset, pin); }
-void toggle(port p, int pin) { do_port(p, p_toggle, pin); }
+/*
+ * Accessible functions.
+ *
+ * Functions exposed to the user of the library.
+ */
 
-/* DDRx */
 
-void make_output(port p, int pin) { do_ddr(p, output, pin); }
-void make_input(port p, int pin) { do_ddr(p, input, pin); }
+/*
+ * DDRx handling.
+ */
 
-void make_outputs(port p, int from, int to) {
+void make_output(Port p, int pin) { do_ddr(p, output, pin); }
+void make_input(Port p, int pin) { do_ddr(p, input, pin); }
+
+void make_outputs(Port p, int from, int to) {
   for (int i = from; i <= to; i++) {
     do_ddr(p, output, i);
   }
 }
 
-void make_inputs(port p, int from, int to) {
+void make_inputs(Port p, int from, int to) {
   for (int i = from; i <= to; i++) {
     do_ddr(p, input, i);
   }
 }
 
-/* Pull-up */
-
-void make_pullup(port p, int pin) {
+// Create a pull up port by making it an input port and setting it high.
+void make_pullup(Port p, int pin) {
   make_input(p, pin);
   set(p, pin);
 }
 
-/* PINx */
 
-int read(port p, int pin) {
+/*
+ * PORTx handling (setting/unsetting outputs).
+ */
+
+void set(Port p, int pin) { do_port(p, p_set, pin); }
+void unset(Port p, int pin) { do_port(p, p_unset, pin); }
+void toggle(Port p, int pin) { do_port(p, p_toggle, pin); }
+
+
+/*
+ * PINx handling (reading inputs).
+ */
+
+int read(Port p, int pin) {
   switch (p) {
   case portb:
     return PINB & (1 << pin);
@@ -131,15 +151,9 @@ int read(port p, int pin) {
   return 1;
 }
 
-/*
- *
- * Quality of life functions.
- *
- **/
 
-/* Waits for PINx to change value */
-
-void wait_btn(port p, int pin) {
+// Waits for PINx to change value.
+void wait_btn(Port p, int pin) {
 
   while (1) {
     if (read(p, pin) == 0) {
@@ -166,12 +180,18 @@ void wait_btn(port p, int pin) {
 
 
 /*
-**
-** Shift register handling.
-**
-*/
+ * Shift register functions to make handling easier.
+ */
 
-#define SR_WAIT_MS 50
+#define SR_WAIT_MS 0
+
+void sr_init(ShiftRegister *sr) {
+  make_output(sr->port, sr->MR);
+  make_output(sr->port, sr->SH_CP);
+  make_output(sr->port, sr->ST_CP);
+  make_output(sr->port, sr->OE);
+  make_output(sr->port, sr->DS);
+}
 
 void sr_step(ShiftRegister *sr) {
   set(sr->port, sr->SH_CP);
@@ -183,7 +203,7 @@ void sr_step(ShiftRegister *sr) {
 }
 
 void sr_step_times(ShiftRegister *sr, int times) {
-  for (int i = times; i >= 0; i--) {
+  for (int i = times; i > 0; i--) {
     set(sr->port, sr->SH_CP);
     set(sr->port, sr->ST_CP);
     _delay_ms(SR_WAIT_MS);
@@ -194,11 +214,62 @@ void sr_step_times(ShiftRegister *sr, int times) {
 }
 
 void sr_reset(ShiftRegister *sr) {
-  unset(sr->MR, sr->port);
+  unset(sr->port, sr->MR);
   sr_step(sr);
-  set(sr->MR, sr->port);
+  set(sr->port, sr->MR);
   sr_step(sr);
 }
 
-void sr_toggle_output(ShiftRegister *sr) {
+void sr_toggle(ShiftRegister *sr) {
+  toggle(sr->port, sr->OE);
+}
+
+/*
+ * Pushes the value to the shift register, lowest bit will be output on Q7
+ * and so on.
+ */
+void sr_push_val(ShiftRegister *sr, uint8_t value) {
+  for (uint8_t i = 0; i < 8; i++) {
+    uint8_t bit = (value & 1);
+
+    if (bit)
+      set(sr->port, sr->DS);
+    else
+      unset(sr->port, sr->DS);
+
+    value >>= 1;
+    sr_step(sr);
+  }
+}
+
+
+/*
+ * Distance sensor functions to make handling easire.
+ */
+
+#define SOUND_VELOCITY 340
+
+void ds_init(DistanceSensor *ds) {
+  make_output(ds->port, ds->TRIG);
+  make_input(ds->port, ds->ECHO);
+  unset(ds->port, ds->TRIG);
+  unset(ds->port, ds->ECHO);
+}
+
+float ds_measure(DistanceSensor *ds) {
+  set(ds->port, ds->TRIG);
+  _delay_ms(0.02);
+  unset(ds->port, ds->TRIG);
+
+  while(!read(ds->port, ds->ECHO)) {}
+
+  float elapsed_time = 0;
+  while(read(ds->port, ds->ECHO)) {
+    _delay_ms(0.1);
+    elapsed_time += 0.1;
+  }
+
+  // distance (in cm) = (elapsed time * sound velocity) / 100 / 2
+  // divide distance by 2 because sensor returns the round trip time
+  return ( ( elapsed_time * SOUND_VELOCITY ) / 100 ) / 2;
 }
